@@ -1,66 +1,72 @@
-import pool from "../lib/db";
+import client from "../lib/db"; // Import the MongoDB client
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
+// Register a new user
 export async function register(req: Request, res: Response) {
-  //CHECK EXISTING USER
+  try {
+    const db = client.db(process.env.MONGO_DEFAULT_DB);
+    const usersCollection = db.collection('users');
 
-  const r = await pool.query("SELECT * FROM users WHERE email=$1;", [
-    req.body.email,
-  ]);
-  console.log(r.rows);
-  if (r.rowCount != 0) {
-    return res.send("user exist");
+    // CHECK EXISTING USER
+    const existingUser = await usersCollection.findOne({ email: req.body.email });
+    if (existingUser) {
+      return res.send("User already exists");
+    }
+
+    const salt = bcrypt.genSaltSync(10);
+    const hash = bcrypt.hashSync(req.body.password, salt);
+
+    // INSERT NEW USER
+    const result = await usersCollection.insertOne({
+      email: req.body.email,
+      password: hash,
+      created_at: new Date(),
+    });
+
+    res.status(200).json(result.insertedId);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error registering user");
   }
-  const salt = bcrypt.genSaltSync(10);
-  const hash = bcrypt.hashSync(req.body.password, salt);
-
-  await pool.query("INSERT INTO users (email,password) VALUES ($1,$2);", [
-    req.body.email,
-    hash,
-  ]);
-
-  const result = await pool.query("SELECT * FROM users WHERE email = $1;", [
-    req.body.email,
-  ]);
-
-  res.status(200).json(result.rows[0].uid);
-  return;
 }
 
+// Login a user
 export async function login(req: Request, res: Response) {
-  //CHECK USER
+  try {
+    const db = client.db(process.env.MONGO_DEFAULT_DB);
+    const usersCollection = db.collection('users');
 
-  const r = await pool.query("SELECT * FROM users WHERE email = $1", [
-    req.body.email,
-  ]);
+    // CHECK USER
+    const user = await usersCollection.findOne({ email: req.body.email });
+    if (!user) {
+      return res.status(400).json("User does not exist");
+    }
 
-  if (r.rowCount == 0) {
-    return res.status(400).json("User does not exist");
+    const isPasswordCorrect = bcrypt.compareSync(req.body.password, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(400).json("Wrong username or password!");
+    }
+
+    // Generate JWT token
+    const token = jwt.sign({ id: user._id }, "jwtkey");
+    const { password, ...other } = user;
+    console.log(token);
+
+    res
+      .cookie("access_token", token, {
+        httpOnly: true,
+      })
+      .status(200)
+      .json(other);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error logging in");
   }
-
-  const isPasswordCorrect = bcrypt.compareSync(
-    req.body.password,
-    r.rows[0].password,
-  );
-
-  if (!isPasswordCorrect)
-    return res.status(400).json("Wrong username or password!");
-
-  const token = jwt.sign({ id: r.rows[0].uid }, "jwtkey");
-  const { password, ...other } = r.rows[0];
-
-  console.log(token);
-
-  res
-    .cookie("access_token", token, {
-      httpOnly: true,
-    })
-    .status(200)
-    .json(other);
 }
 
+// Logout a user
 export async function logout(req: Request, res: Response) {
   res
     .clearCookie("access_token", {
@@ -71,22 +77,33 @@ export async function logout(req: Request, res: Response) {
     .json("User has been logged out.");
 }
 
+// Add user details
 export async function userdata(req: Request, res: Response) {
-  await pool.query(
-    "INSERT INTO user_details (uid , name , role , company , site) VALUES ($1,$2,$3,$4,$5);",
-    [
-      req.body.uid,
-      req.body.name,
-      req.body.role,
-      req.body.company,
-      req.body.site,
-    ],
-  );
+  try {
+    const db = client.db(process.env.MONGO_DEFAULT_DB);
+    const userDetailsCollection = db.collection('user_details');
+    const companyCollection = db.collection('company');
 
-  await pool.query(
-    "INSERT INTO company (company_name, company_site) VALUES ($1,$2);",
-    [req.body.company, req.body.site],
-  );
+    // INSERT USER DETAILS
+    await userDetailsCollection.insertOne({
+      uid: req.body.uid,
+      name: req.body.name,
+      role: req.body.role,
+      company: req.body.company,
+      site: req.body.site,
+    });
 
-  return res.status(200).json("User Details Added");
+    // INSERT COMPANY DETAILS
+    await companyCollection.updateOne(
+      { company_name: req.body.company },
+      { $set: { company_name: req.body.company, company_site: req.body.site } },
+      { upsert: true }
+    );
+
+    return res.status(200).json("User Details Added");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Error adding user details");
+  }
 }
+

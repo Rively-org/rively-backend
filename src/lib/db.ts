@@ -1,74 +1,53 @@
-import pg from "pg";
+import { MongoClient } from "mongodb";
 require('dotenv').config();
 
-const { Pool } = pg;
+// MongoDB connection
+const url = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@${process.env.MONGO_HOST}:${process.env.MONGO_PORT}/${process.env.MONGO_DB}?authSource=${process.env.MONGO_DB}`;
 
-const pool = new Pool({
-  host: "localhost",
-  port: 5432,
-  user: "postgres",
-  password: "password",
-});
+const client = new MongoClient(url);
 
-// Function to create the tables
-const createTables = async () => {
-  const createUsersTableQuery = `
-        CREATE TABLE IF NOT EXISTS users (
-            uid SERIAL PRIMARY KEY,
-            email TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    `;
+// Database name
+const dbName = "mydatabase";
 
-  const createUserDetailsTableQuery = `
-        CREATE TABLE IF NOT EXISTS user_details (
-            uid INTEGER REFERENCES users(uid) ON DELETE CASCADE,
-            name TEXT NOT NULL,
-            role TEXT NOT NULL,
-            company TEXT NOT NULL,
-            site TEXT NOT NULL
-        );
-    `;
-
-  const createUserInterestsTableQuery = `
-        CREATE TABLE IF NOT EXISTS user_interests (
-            uid INTEGER REFERENCES users(uid) ON DELETE CASCADE,
-            interest TEXT NOT NULL
-        );
-    `;
-
-  const createCompanyTableQuery = `
-        CREATE TABLE IF NOT EXISTS company (
-           company_id SERIAL PRIMARY KEY,
-           company_name TEXT NOT NULL,
-           company_site TEXT NOT NULL
-        );
-    `;
-
-  const createUserCompetitorsTableQuery = `
-      CREATE TABLE IF NOT EXISTS user_competitors (
-           uid INTEGER REFERENCES users(uid) ON DELETE CASCADE,
-           company_id INTEGER REFERENCES company(company_id) ON DELETE CASCADE
-      );
-    `;
-
+// Function to create collections
+const createCollections = async () => {
   try {
-    await pool.query(createCompanyTableQuery);
-    await pool.query(createUsersTableQuery);
-    await pool.query(createUserDetailsTableQuery);
-    await pool.query(createUserInterestsTableQuery);
-    await pool.query(createUserCompetitorsTableQuery);
-    console.log("Tables created successfully");
+    await client.connect();
+    console.log("Connected successfully to MongoDB");
+
+    const db = client.db(dbName);
+    console.log(`Using database: ${db.databaseName}`);
+
+    // Create users collection with unique index on email
+    const usersCollection = db.collection('users');
+    await usersCollection.createIndex({ email: 1 }, { unique: true });
+    console.log("Users collection created with unique index on email.");
+
+    // Create user_details collection and insert a dummy document
+    await db.collection('user_details').insertOne({ dummy: "data" });
+    console.log("User_details collection created.");
+
+    // Create user_interests collection and insert a dummy document
+    await db.collection('user_interests').insertOne({ dummy: "data" });
+    console.log("User_interests collection created.");
+
+    // Create company collection with unique index on company_name
+    const companyCollection = db.collection('company');
+    await companyCollection.createIndex({ company_name: 1 }, { unique: true });
+    console.log("Company collection created with unique index on company_name.");
+
+    // Create user_competitors collection and insert a dummy document
+    await db.collection('user_competitors').insertOne({ dummy: "data" });
+    console.log("User_competitors collection created.");
+
+    console.log("All collections created successfully.");
   } catch (error) {
-    console.error("Error creating tables:", error);
-  }
+    console.error("Error creating collections:", error);
+  } 
 };
 
-createTables();
-//.then(() => pool.end()) // Close the pool after the operation
-//.catch((error) => {
-//  console.error("Error during table creation:", error);
-//  pool.end();
-//});
-export default pool;
+// Call the function to create the collections
+createCollections();
+
+export default client;
+
