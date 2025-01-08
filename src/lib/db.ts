@@ -2,7 +2,8 @@ import { MongoClient } from "mongodb";
 require('dotenv').config();
 
 // MongoDB connection
-const url = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@${process.env.MONGO_HOST}:${process.env.MONGO_PORT}/${process.env.MONGO_DB}?authSource=${process.env.MONGO_DB}`;
+// const url = `mongodb://${process.env.MONGO_USER}:${process.env.MONGO_PASSWORD}@${process.env.MONGO_HOST}:${process.env.MONGO_PORT}/${process.env.MONGO_DB}?authSource=${process.env.MONGO_DB}`;
+const url = `mongodb://localhost:27017`
 
 const client = new MongoClient(url);
 

@@ -2,7 +2,7 @@
 
 import { scrapeWebsite } from '../services/scraper';
 
-export async function startScraping(siteUrl: string) {
+export async function startScraping(siteUrl: string, dataType: string) {
   try {
     console.log(`Starting scraping for URL: ${siteUrl}`);
     // Call the scraper function with the site URL

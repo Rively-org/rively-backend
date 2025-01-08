@@ -35,6 +35,7 @@ export async function register(req: Request, res: Response) {
 // Login a user
 export async function login(req: Request, res: Response) {
   try {
+    console.log("enter")
     const db = client.db(process.env.MONGO_DEFAULT_DB);
     const usersCollection = db.collection('users');
 
@@ -46,6 +47,7 @@ export async function login(req: Request, res: Response) {
 
     const isPasswordCorrect = bcrypt.compareSync(req.body.password, user.password);
     if (!isPasswordCorrect) {
+      console.log("wrong password")
       return res.status(400).json("Wrong username or password!");
     }
 
